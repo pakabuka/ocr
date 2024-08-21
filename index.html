@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OCR Website</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            width: 90%;
+            max-width: 1200px;
+            background-color: #fff;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+            overflow: hidden;
+            padding: 20px;
+        }
+
+        .upper-section {
+            display: flex;
+            width: 100%;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+
+        .image-drop-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            background-color: #e9ecef;
+            cursor: pointer;
+            position: relative;
+            margin-right: 20px;
+        }
+
+        .image-drop-area h3 {
+            color: #666;
+            margin-bottom: 20px;
+        }
+
+        .image-drop-area.dragging {
+            background-color: #d1ecf1;
+            border-color: #17a2b8;
+        }
+
+        .text-output {
+            flex: 2;
+            padding: 20px;
+            background-color: #f8f9fa;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            max-height: 400px;
+        }
+
+        .text-output h3 {
+            color: #666;
+            margin-bottom: 20px;
+        }
+
+        #outputText {
+            white-space: pre-wrap;
+            color: #333;
+            font-size: 16px;
+            line-height: 1.5;
+            flex-grow: 1;
+        }
+
+        #copyButton {
+            align-self: flex-end;
+            padding: 10px 20px;
+            margin-top: 20px;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        #copyButton:hover {
+            background-color: #218838;
+        }
+
+        #extractButton {
+            padding: 10px 20px;
+            margin: 20px 0;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            display: block;
+            width: 100%;
+            text-align: center;
+        }
+
+        #extractButton.disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+
+        #extractButton:hover:not(.disabled) {
+            background-color: #0056b3;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 5px;
+            background-color: #ccc;
+            margin-bottom: 10px;
+            overflow: hidden;
+            border-radius: 5px;
+        }
+
+        .progress {
+            width: 0;
+            height: 100%;
+            background-color: #28a745;
+            transition: width 0.3s ease;
+        }
+
+        .file-list {
+            width: 100%;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-top: 2px solid #ccc;
+            overflow-y: auto;
+            max-height: 200px;
+        }
+
+        .file-list h4 {
+            color: #666;
+            margin-bottom: 20px;
+        }
+
+        .file-item {
+            margin-bottom: 10px;
+            padding: 10px;
+            background-color: #e9ecef;
+            border-radius: 5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .file-item span {
+            font-size: 14px;
+            color: #333;
+        }
+
+        .disclaimer {
+    text-align: center;
+    font-size: 12px;
+    color: #666;
+    margin-top: 20px;
+}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="upper-section">
+            <div class="image-drop-area" id="imageDropArea">
+                <h3>Drag & Drop Images Here</h3>
+                <input type="file" id="fileInput" style="display: none;" multiple>
+            </div>
+            <div class="text-output">
+                <h3>Extracted Text</h3>
+                <p id="outputText"></p>
+                <button id="copyButton">Copy Text</button>
+                <button id="extractButton" class="extract-button">Extract Text</button>
+            </div>
+        </div>
+        <div class="progress-bar">
+            <div class="progress" id="progress"></div>
+        </div>
+        <div class="file-list" id="fileList">
+            <h4>Uploaded Files</h4>
+        </div>
+
+        <div class="disclaimer">
+            <p>&copy; 2024 Frederick Liu. All rights reserved.</p>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@2.1.1/dist/tesseract.min.js"></script>
+    <script>
+        const imageDropArea = document.getElementById('imageDropArea');
+        const outputText = document.getElementById('outputText');
+        const fileInput = document.getElementById('fileInput');
+        const fileList = document.getElementById('fileList');
+        const copyButton = document.getElementById('copyButton');
+        const extractButton = document.getElementById('extractButton');
+        const progressBar = document.getElementById('progress');
+
+        let uploadedFiles = [];
+
+        imageDropArea.addEventListener('dragover', (event) => {
+            event.preventDefault();
+            imageDropArea.classList.add('dragging');
+        });
+
+        imageDropArea.addEventListener('dragleave', () => {
+            imageDropArea.classList.remove('dragging');
+        });
+
+        imageDropArea.addEventListener('drop', (event) => {
+            event.preventDefault();
+            imageDropArea.classList.remove('dragging');
+            handleFiles(event.dataTransfer.files);
+        });
+
+        imageDropArea.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', () => {
+            handleFiles(fileInput.files);
+        });
+
+        function handleFiles(files) {
+            for (const file of files) {
+                if (file && file.type.startsWith('image/')) {
+                    uploadedFiles.push(file);
+                    displayUploadedFiles();
+                }
+            }
+        }
+
+        function displayUploadedFiles() {
+            fileList.innerHTML = '<h4>Uploaded Files</h4>';
+            uploadedFiles.forEach((file, index) => {
+                const fileItem = document.createElement('div');
+                fileItem.className = 'file-item';
+                fileItem.innerHTML = `<span>${file.name}</span>`;
+                fileList.appendChild(fileItem);
+            });
+        }
+
+        extractButton.addEventListener('click', () => {
+            if (uploadedFiles.length === 0) {
+                alert('No files uploaded!');
+                return;
+            }
+
+            extractButton.classList.add('disabled');
+            extractButton.disabled = true;
+
+            outputText.textContent = ''; // Clear previous text
+            progressBar.style.width = '0%'; // Reset progress bar
+            processFiles();
+        });
+
+        function processFiles() {
+            let combinedText = '';
+            let filesProcessed = 0;
+            const totalFiles = uploadedFiles.length;
+
+            uploadedFiles.forEach((file) => {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    const img = new Image();
+                    img.src = event.target.result;
+                    Tesseract.recognize(img, 'eng', {
+                        logger: (m) => {
+                            if (m.status === 'recognizing text') {
+                                progressBar.style.width = `${((filesProcessed + m.progress) / totalFiles) * 100}%`;
+                            }
+                        },
+                    }).then(({ data: { text } }) => {
+                        combinedText += text + '\n\n';
+                        filesProcessed++;
+                        if (filesProcessed === totalFiles) {
+                            outputText.textContent = combinedText;
+                            progressBar.style.width = '100%'; // Complete the progress bar
+                            extractButton.classList.remove('disabled');
+                            extractButton.disabled = false;
+                        }
+                    }).catch((err) => {
+                        outputText.textContent += "Error: " + err.message + '\n';
+                        filesProcessed++;
+                        if (filesProcessed === totalFiles) {
+                            extractButton.classList.remove('disabled');
+                            extractButton.disabled = false;
+                        }
+                    });
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        copyButton.addEventListener('click', () => {
+            const textToCopy = outputText.textContent;
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                alert('Text copied to clipboard!');
+            }).catch(err => {
+                alert('Failed to copy text: ' + err);
+            });
+        });
+    </script>
+</body>
+</html>
